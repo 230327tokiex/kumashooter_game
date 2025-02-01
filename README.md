@@ -42,7 +42,18 @@ In this version, the game balance has been adjusted so that, if left idle, the p
 
 ## Try It Out
 
-Visit: [Deployment URL]
+Visit: [https://kumashooter-game.vercel.app/]
+
+## Game Images
+
+### Title Screen
+![Title Screen](./shooterimage1.png)
+A retro-style title screen featuring a space battle scene. The image shows spaceships and cosmic warfare, setting the mood for our bullet hell shooter. Created using DALL·E 3 (2024).
+
+### Gameplay Screenshot
+![Gameplay](./shooterimage2.png)
+A screenshot of actual gameplay, showing the teddy bear (🧸) dodging heart-shaped bullets in a circular pattern while the evil pumpkin (🎃) launches its attack. This demonstrates the game's bullet hell mechanics and emoji-based character design.
+
 
 ## About This Repository
 
@@ -50,9 +61,10 @@ This repository demonstrates advanced AI coding capabilities. The entire game wa
 
 ## Notes
 
-- The background music (BGM) uses a custom track created with SUNO.
-- The game is contained entirely within a single HTML file for simplicity.
-- No external dependencies are required except for Google Fonts.
+- The background music (BGM) was created using SUNO AI
+- The title screen artwork was generated using DALL·E 3
+- The game is contained entirely within a single HTML file for simplicity
+- No external dependencies are required except for Google Fonts
 
 ## License
 
@@ -106,7 +118,7 @@ Feel free to use this as a reference or starting point for your own projects!
 
 ## お試しください
 
-公開URL: [Deployment URL]
+公開URL: [https://kumashooter-game.vercel.app/]
 
 ## このリポジトリについて
 

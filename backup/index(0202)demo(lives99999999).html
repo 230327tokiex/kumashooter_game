@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Retro Bullet Hell Shooter</title>
+  <link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">🧸</text></svg>'>
+  <!-- レトロWebフォント -->
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+  <style>
+    body {
+      margin: 0;
+      background: #000;
+      color: #fff;
+      font-family: 'Press Start 2P', cursive;
+      text-align: center;
+      user-select: none;
+    }
+    canvas {
+      background: #000;
+      display: block;
+      margin: 20px auto;
+      border: 3px solid #fff;
+    }
+    #ui {
+      margin: 10px;
+      font-size: 16px;
+    }
+    /* スタート画面 */
+    #startScreen, #gameOverScreen {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.9);
+      color: cyan;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 10;
+    }
+    /* スタートボタン：点滅アニメーション＆クリック有効化 */
+    @keyframes blink {
+      0% { opacity: 1; }
+      50% { opacity: 0; }
+      100% { opacity: 1; }
+    }
+    #startBtn {
+      padding: 10px 20px;
+      font-size: 18px;
+      margin-top: 20px;
+      cursor: pointer;
+      background: yellow;
+      color: black;
+      border: none;
+      font-family: 'Press Start 2P', cursive;
+      animation: blink 1s infinite;
+      pointer-events: auto;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 18px;
+      margin-top: 20px;
+      cursor: pointer;
+      background: yellow;
+      color: black;
+      border: none;
+      font-family: 'Press Start 2P', cursive;
+    }
+  </style>
+</head>
+<body>
+  <!-- スタート画面 -->
+  <div id="startScreen">
+    <h1>Retro Bullet Hell Shooter</h1>
+    <!-- スタート画面画像: 下記のsrc属性を変更して、レトロなイラストに差し替え可能 -->
+    <img id="startImage" src="https://kumashooter-game.vercel.app/startimage.png" alt="Retro Game Illustration" style="max-width:80%; height:auto; margin-bottom:20px;">
+    <p>
+      For the peace of the universe,<br>
+      the brave teddy bear (🧸) battles evil pumpkins (🎃)!<br>
+      Survive the barrage and deliver a critical blow to save the cosmos.
+    </p>
+    <button id="startBtn">Start Game</button>
+  </div>
+  <!-- ゲームオーバー / 勝利画面 -->
+  <div id="gameOverScreen" style="display:none;">
+    <h1 id="endTitle"></h1>
+    <p id="endStory"></p>
+    <p id="finalScore"></p>
+    <button id="restartBtn">Restart</button>
+  </div>
+  
+  <!-- ゲームキャンバス -->
+  <canvas id="gameCanvas" width="800" height="600"></canvas>
+  <!-- BGM設定: 下記のsrc属性を変更して、BGMをカスタマイズ可能 https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3 -->
+  <!-- BGM（SUNOで作成した bgm.mp3 を使用） -->
+  <audio id="bgm" loop>
+    <source src="./bgm.mp3" type="audio/mp3">
+    Your browser does not support the audio element.
+  </audio>
+  
+  <script>
+    // ---------------------------
+    // カスタマイズ用コメント:
+    // - スタート画面画像のURLは、img#startImage の src 属性を変更してください。
+    // - BGMを変更する場合は、audio#bgm 内の <source> の src 属性を変更してください。
+    // ---------------------------
+    
+    // キャンバス関連
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+    const cw = canvas.width, ch = canvas.height;
+    
+    // ゲーム状態
+    let gameRunning = false;
+    let score = 0;
+    
+    // プレイヤー設定（🧸）
+    const player = {
+      x: cw / 2 - 16,
+      y: ch - 60,
+      sprite: "🧸",
+      width: 32,
+      height: 32,
+      speed: 6,
+      lives: 99999 // ★ 難易度調整: プレイヤーのライフを減らして難易度アップ (調整可能) 3-10 ★デモ用に数値を大きくしています 難易度調整に合わせたリセット値も同時に修正する
+    };
+    
+    // 敵設定（🎃）
+    const enemy = {
+      x: cw / 2 - 16,
+      y: 100,
+      sprite: "🎃",
+      width: 32,
+      height: 32,
+      speed: 4, // ★ 難易度調整: 敵の移動速度を上げる (調整可能) 3
+      direction: 1, // 1:右, -1:左
+      shootInterval: 600, // ★ 難易度調整: 敵の射撃間隔 (ミリ秒単位) 1000
+      lastShotTime: 0,
+      hp: 99999 // ★ 難易度調整: 敵の体力 (調整可能) 15 ★デモ用に数値を大きくしています 難易度調整に合わせたリセット値も同時に修正する
+    };
+    
+    // 入力状態
+    const keys = { left: false, right: false };
+    document.addEventListener("keydown", (e) => {
+      if(e.key === "ArrowLeft") keys.left = true;
+      if(e.key === "ArrowRight") keys.right = true;
+    });
+    document.addEventListener("keyup", (e) => {
+      if(e.key === "ArrowLeft") keys.left = false;
+      if(e.key === "ArrowRight") keys.right = false;
+    });
+    
+    // 弾（Bullet）のオブジェクトプール
+    const bulletPool = [];
+    const POOL_SIZE = 100;
+    for(let i = 0; i < POOL_SIZE; i++){
+      bulletPool.push({
+        x: 0, y: 0, dx: 0, dy: 0,
+        type: "", // "player" or "enemy"
+        sprite: "",
+        active: false,
+        radius: 10
+      });
+    }
+    function getBullet() {
+      for(let b of bulletPool){
+        if(!b.active) {
+          b.active = true;
+          return b;
+        }
+      }
+      return null;
+    }
+    
+    // 敵が発射する弾パターン（例：円形パターン）
+    function enemyShootPattern() {
+      const numBullets = 20; // ★ 難易度調整: 敵が一度に放つ弾の数 (調整可能)16
+      const speed = 4; // ★ 難易度調整: 敵の弾の速度 (調整可能)4
+      // ★ 敵弾の色設定: 黄色(💛)を多めに、その他にピンク(🩷)、緑(💚)、紫(💜)、オレンジ(🧡)を使用
+      // ハートの種類："💛", "🩷", "💚", "💜", "🧡", "🩵", "💙", "💝", "🤍", "🩶", " 🤎", " 💖", " 💖", "❤️‍🩹", 
+      const enemyBulletColors = ["💛", "💛", "💛", "💛", "💛", "💜", "💙", "🩷", "🧡", "🩵", "💖","💚","🤍", "❤️‍🩹",];
+      for(let i = 0; i < numBullets; i++){
+        const angle = (i / numBullets) * 2 * Math.PI;
+        const bullet = getBullet();
+        if(bullet) {
+          bullet.x = enemy.x + enemy.width / 2;
+          bullet.y = enemy.y + enemy.height / 2;
+          bullet.dx = Math.cos(angle) * speed;
+          bullet.dy = Math.sin(angle) * speed;
+          bullet.type = "enemy";
+          bullet.sprite = enemyBulletColors[Math.floor(Math.random() * enemyBulletColors.length)];
+        }
+      }
+    }
+    
+    // プレイヤーの弾を発射（通常は🍬、10%の確率でレアな🍭）
+    function playerShoot() {
+      const bullet = getBullet();
+      if(bullet) {
+        bullet.x = player.x + player.width / 2;
+        bullet.y = player.y;
+        bullet.dx = 0;
+        bullet.dy = -6; // プレイヤー弾の速度 (上方向に移動)
+        bullet.type = "player";
+        bullet.sprite = (Math.random() < 0.0000000001) ? "🍭" : "🍬";    //レア🍭（ゲーム終了）の確率をデモ用に調整 もとは0.1★
+      }
+    }
+    
+    // プレイヤー弾の発射間隔
+    let lastPlayerShot = 0;
+    const playerShotInterval = 400; // ★ 難易度調整: 射撃間隔 (ミリ秒単位)400
+    
+    // 爆発エフェクト
+    const explosions = [];
+    function spawnExplosion(x, y) {
+      explosions.push({x, y, radius: 0, maxRadius: 20, life: 20});
+    }
+    
+    // 簡単な当たり判定（円形）
+    function isColliding(a, b) {
+      const dx = (a.x + a.width/2) - (b.x + b.width/2);
+      const dy = (a.y + a.height/2) - (b.y + b.height/2);
+      const distance = Math.sqrt(dx*dx + dy*dy);
+      return distance < (a.width/2 + b.radius);
+    }
+    
+    // 弾の更新
+    function updateBullets(delta) {
+      for(let bullet of bulletPool){
+        if(bullet.active){
+          bullet.x += bullet.dx;
+          bullet.y += bullet.dy;
+          if(bullet.x < -20 || bullet.x > cw + 20 || bullet.y < -20 || bullet.y > ch + 20) {
+            bullet.active = false;
+          }
+          // プレイヤーの弾が敵に当たったかチェック
+          if(bullet.type === "player" && enemy.hp > 0) {
+            if(bullet.x > enemy.x && bullet.x < enemy.x + enemy.width &&
+               bullet.y > enemy.y && bullet.y < enemy.y + enemy.height) {
+              bullet.active = false;
+              // レア弾なら即勝利
+              if(bullet.sprite === "🍭") {
+                enemy.hp = 0;
+              } else {
+                enemy.hp--;
+              }
+              spawnExplosion(enemy.x + enemy.width/2, enemy.y + enemy.height/2);
+              score += 100;
+              if(enemy.hp > 0) {
+                enemy.x = cw/2 - enemy.width/2;
+                enemy.y = 50;
+                enemy.lastShotTime = performance.now();
+              }
+            }
+          }
+          // 敵の弾がプレイヤーに当たったかチェック
+          if(bullet.type === "enemy") {
+            if(bullet.x > player.x && bullet.x < player.x + player.width &&
+               bullet.y > player.y && bullet.y < player.y + player.height) {
+              bullet.active = false;
+              player.lives--;
+              spawnExplosion(player.x + player.width/2, player.y + player.height/2);
+            }
+          }
+        }
+      }
+    }
+    
+    // 弾の描画
+    function drawBullets() {
+      for(let bullet of bulletPool){
+        if(bullet.active){
+          ctx.font = "24px 'Press Start 2P'";
+          ctx.fillText(bullet.sprite, bullet.x, bullet.y);
+        }
+      }
+    }
+    
+    // 爆発エフェクト更新＆描画
+    function updateExplosions() {
+      for(let i = explosions.length - 1; i >= 0; i--){
+        const exp = explosions[i];
+        exp.radius += 1;
+        exp.life--;
+        ctx.beginPath();
+        ctx.arc(exp.x, exp.y, exp.radius, 0, 2 * Math.PI);
+        ctx.strokeStyle = "magenta";
+        ctx.stroke();
+        if(exp.life <= 0) {
+          explosions.splice(i, 1);
+        }
+      }
+    }
+    
+    // プレイヤー更新
+    function updatePlayer() {
+      if(keys.left && player.x > 0) {
+        player.x -= player.speed;
+      }
+      if(keys.right && player.x + player.width < cw) {
+        player.x += player.speed;
+      }
+    }
+    
+    // 敵更新（横移動＋弾発射）
+    function updateEnemy(timestamp) {
+      enemy.x += enemy.speed * enemy.direction;
+      if(enemy.x < 0 || enemy.x + enemy.width > cw) {
+        enemy.direction *= -1;
+      }
+      if(timestamp - enemy.lastShotTime > enemy.shootInterval) {
+        enemyShootPattern();
+        enemy.lastShotTime = timestamp;
+      }
+    }
+    
+    // エンティティ描画（プレイヤー、敵、スコア・残機表示）
+    function drawEntities() {
+      // 描画: プレイヤー
+      if(player.lives > 0) {
+        ctx.font = "32px 'Press Start 2P'";
+        ctx.fillStyle = "white";
+        ctx.fillText(player.sprite, player.x, player.y + player.height);
+      }
+      // 描画: 敵（敵が生存している場合は敵キャラとHPを描画）
+      if(enemy.hp > 0) {
+        ctx.font = "32px 'Press Start 2P'";
+        ctx.fillStyle = "white";
+        ctx.fillText(enemy.sprite, enemy.x, enemy.y + enemy.height);
+        // ★ 敵のHPを敵キャラクターの上に表示（カスタマイズ可能）
+        //ctx.font = "16px 'Press Start 2P'";
+        //ctx.fillStyle = "red";
+        //ctx.fillText("HP: " + enemy.hp, enemy.x, enemy.y - 10);
+      }
+      // UI 表示（スコア、プレイヤーライフ、敵HP）
+      ctx.font = "20px 'Press Start 2P'";
+      ctx.fillStyle = "yellow";
+      ctx.fillText("Score: " + score, 20, 40);
+      ctx.fillText("Lives: " + player.lives, 20, 70);
+      ctx.fillText("Enemy HP: " + enemy.hp, cw - 330, 40); // ★ UI上の敵HP表示（カスタマイズ可能）
+    }
+    
+    // メインループ
+    let lastTime = performance.now();
+    function gameLoop(timestamp) {
+      if(!gameRunning) return;
+      const delta = timestamp - lastTime;
+      lastTime = timestamp;
+      
+      ctx.clearRect(0, 0, cw, ch);
+      updatePlayer();
+      updateEnemy(timestamp);
+      if(timestamp - lastPlayerShot > playerShotInterval) {
+        playerShoot();
+        lastPlayerShot = timestamp;
+      }
+      updateBullets(delta);
+      updateExplosions();
+      
+      drawBullets();
+      drawEntities();
+      
+      if(enemy.hp <= 0) {
+        gameRunning = false;
+        endGame(true);
+        return;
+      }
+      if(player.lives <= 0) {
+        gameRunning = false;
+        endGame(false);
+        return;
+      }
+      
+      requestAnimationFrame(gameLoop);
+    }
+    
+    // ゲーム終了処理
+    function endGame(win) {
+      const screen = document.getElementById("gameOverScreen");
+      const endTitle = document.getElementById("endTitle");
+      const endStory = document.getElementById("endStory");
+      const finalScore = document.getElementById("finalScore");
+      
+      if(win) {
+        endTitle.innerText = "WIN!";
+        endStory.innerText = "The brave teddy bear has defeated the evil pumpkins and restored cosmic peace!";
+      } else {
+        endTitle.innerText = "GAME OVER";
+        endStory.innerText = "Alas, the bear has fallen... The universe remains in peril.";
+      }
+      finalScore.innerText = "Final Score: " + score;
+      screen.style.display = "flex";
+    }
+    
+    // スタート・再スタート処理
+    document.getElementById("startBtn").addEventListener("click", () => {
+      document.getElementById("startScreen").style.display = "none";
+      startGame();
+    });
+    document.getElementById("restartBtn").addEventListener("click", () => {
+      document.getElementById("gameOverScreen").style.display = "none";
+      resetGame();
+      startGame();
+    });
+    
+    // BGM再生とゲーム開始
+    const bgm = document.getElementById("bgm");
+    function startGame() {
+      console.log("Game starting...");
+      score = 0;
+      player.x = cw / 2 - 16;
+      player.lives = 99999; // ★ リセット時にもプレイヤーライフを新しい値に設定
+      enemy.x = cw / 2 - 16;
+      enemy.y = 100;
+      enemy.hp = 99999; // ★ リセット時にも敵の体力を新しい値に設定
+      enemy.lastShotTime = performance.now();
+      bulletPool.forEach(b => b.active = false);
+      explosions.length = 0;
+      gameRunning = true;
+      lastTime = performance.now();
+      bgm.volume = 0.3; // ★ BGMの音量はここで調整可能 (0.0～1.0)
+      bgm.play().catch(err => console.log("BGM play error", err));
+      requestAnimationFrame(gameLoop);
+    }
+    
+    function resetGame() {
+      score = 0;
+      player.lives = 99999; // ★ 難易度調整に合わせたリセット値
+      enemy.hp = 99999;  // ★ 難易度調整に合わせたリセット値
+    }
+    
+  </script>
+</body>
+</html>
